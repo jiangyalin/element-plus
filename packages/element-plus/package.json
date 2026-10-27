@@ -1,6 +1,6 @@
 {
-  "name": "element-plus",
-  "version": "0.0.0-dev.1",
+  "name": "@yifangtongxing/element-plus",
+  "version": "2.14.7-jyl.0",
   "description": "A Component Library for Vue 3",
   "keywords": [
     "element-plus",
@@ -75,7 +75,7 @@
   "jsdelivr": "dist/index.full.js",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/element-plus/element-plus.git"
+    "url": "git+https://github.com/jiangyalin/element-plus.git"
   },
   "publishConfig": {
     "access": "public"

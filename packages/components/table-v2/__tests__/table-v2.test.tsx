@@ -1,6 +1,6 @@
 import { h, nextTick, ref } from 'vue'
 import { mount } from '@vue/test-utils'
-import { describe, expect, test } from 'vitest'
+import { describe, expect, test, vi } from 'vitest'
 import TableV2, { type TableV2Instance } from '../src/table-v2'
 import { TableV2SortOrder } from '../index'
 
@@ -39,6 +39,60 @@ const generateData = (
   })
 
 describe('TableV2.vue', () => {
+  test('updates dynamic row height after slot content changes', async () => {
+    const callbacks: ResizeObserverCallback[] = []
+    class MockResizeObserver {
+      constructor(callback: ResizeObserverCallback) {
+        callbacks.push(callback)
+      }
+
+      observe() {}
+      disconnect() {}
+      unobserve() {}
+    }
+    vi.stubGlobal('ResizeObserver', MockResizeObserver)
+    const content = ref('short')
+    const columns = generateColumns(1)
+    const data = generateData(columns, 1)
+    const getBoundingClientRect = vi
+      .spyOn(HTMLElement.prototype, 'getBoundingClientRect')
+      .mockImplementation(function () {
+        const height =
+          this.getAttribute('role') === 'row'
+            ? this.textContent?.includes('expanded')
+              ? 80
+              : 40
+            : 0
+        return { height } as DOMRect
+      })
+
+    const wrapper = mount(() => (
+      <TableV2
+        columns={columns}
+        data={data}
+        width={700}
+        height={400}
+        estimatedRowHeight={40}
+        v-slots={{
+          cell: () => <span>{content.value}</span>,
+        }}
+      />
+    ))
+
+    await nextTick()
+    content.value = 'expanded'
+    await nextTick()
+    callbacks.forEach((callback) => callback([], {} as ResizeObserver))
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    await nextTick()
+
+    expect(wrapper.find('[rowkey="row-0"]').attributes('style')).toContain(
+      'height: 80px;'
+    )
+    getBoundingClientRect.mockRestore()
+    vi.unstubAllGlobals()
+  })
+
   test('slots cell', async () => {
     const columns = ref(generateColumns(10))
     const data = ref(generateData(columns.value, 20))

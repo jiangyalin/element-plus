@@ -4,6 +4,7 @@ import {
   inject,
   nextTick,
   onMounted,
+  onUnmounted,
   ref,
   unref,
 } from 'vue'
@@ -38,6 +39,8 @@ const useTableRow = (props: TableV2RowProps) => {
 
   const measured = ref(false)
   const rowRef = ref<HTMLElement>()
+  let resizeObserver: ResizeObserver | undefined
+  let mutationObserver: MutationObserver | undefined
   const measurable = computed(() => {
     return isNumber(props.estimatedRowHeight) && props.rowIndex >= 0
   })
@@ -46,7 +49,12 @@ const useTableRow = (props: TableV2RowProps) => {
     const $rowRef = unref(rowRef)
     if (!$rowRef) return
     const { columns, onRowHeightChange, rowKey, rowIndex, style } = props
+    const previousHeight = $rowRef.style.height
+    // 动态行高首次测量后会写入虚拟列表缓存的固定高度。内容更新时先临时
+    // 移除该高度，才能读取 tags、异步文本等变化后的自然高度。
+    $rowRef.style.height = 'auto'
     const { height } = $rowRef.getBoundingClientRect()
+    $rowRef.style.height = previousHeight
     measured.value = true
 
     nextTick(() => {
@@ -117,9 +125,29 @@ const useTableRow = (props: TableV2RowProps) => {
   }
 
   onMounted(() => {
-    if (unref(measurable)) {
-      doMeasure(true)
+    if (!unref(measurable)) return
+
+    doMeasure(true)
+    const rowElement = unref(rowRef)
+    if (!rowElement) return
+
+    if (typeof ResizeObserver !== 'undefined') {
+      resizeObserver = new ResizeObserver(() => doMeasure())
+      resizeObserver.observe(rowElement)
     }
+    if (typeof MutationObserver !== 'undefined') {
+      mutationObserver = new MutationObserver(() => doMeasure())
+      mutationObserver.observe(rowElement, {
+        childList: true,
+        characterData: true,
+        subtree: true,
+      })
+    }
+  })
+
+  onUnmounted(() => {
+    resizeObserver?.disconnect()
+    mutationObserver?.disconnect()
   })
 
   return { isScrolling, measurable, measured, rowRef, eventHandlers, onExpand }
